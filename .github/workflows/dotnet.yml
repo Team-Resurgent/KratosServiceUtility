@@ -22,25 +22,25 @@ jobs:
             arch: x64
             archive_ext: zip
             project: KratosServiceUtility
-            project_path: src/KratosServiceUtility
+            project_path: KratosServiceUtility/KratosServiceUtility
             project_lowercase: kratosserviceutility
           - os_flavor: linux-x64
             arch: x64
             archive_ext: tar
             project: KratosServiceUtility
-            project_path: src/KratosServiceUtility
+            project_path: KratosServiceUtility/KratosServiceUtility
             project_lowercase: kratosserviceutility
           - os_flavor: osx-x64
             arch: x64
             archive_ext: tar
             project: KratosServiceUtility
-            project_path: src/KratosServiceUtility
+            project_path: KratosServiceUtility/KratosServiceUtility
             project_lowercase: kratosserviceutility
           - os_flavor: osx-arm64
             arch: arm64
             archive_ext: tar
             project: KratosServiceUtility
-            project_path: src/KratosServiceUtility
+            project_path: KratosServiceUtility/KratosServiceUtility
             project_lowercase: kratosserviceutility
 
     steps:
