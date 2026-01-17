@@ -2,7 +2,7 @@
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
-        <RootNamespace>Kratos_Service_utility</RootNamespace>
+        <RootNamespace>KratosServiceUtility</RootNamespace>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <ApplicationIcon>kratos.ico</ApplicationIcon>

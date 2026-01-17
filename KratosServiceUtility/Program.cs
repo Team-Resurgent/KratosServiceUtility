@@ -1,7 +1,7 @@
 using Avalonia;
 using System;
 
-namespace Kratos_Service_utility
+namespace KratosServiceUtility
 {
     internal class Program
     {

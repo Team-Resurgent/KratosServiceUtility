@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.0.11222.15 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kratos Service utility", "src\Kratos Service utility.csproj", "{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KratosServiceUtility", "KratosServiceUtility\KratosServiceUtility.csproj", "{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

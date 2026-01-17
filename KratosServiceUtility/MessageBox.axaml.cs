@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 
-namespace Kratos_Service_utility
+namespace KratosServiceUtility
 {
     public enum MessageBoxButtons
     {

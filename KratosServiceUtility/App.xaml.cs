@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 
-namespace Kratos_Service_utility
+namespace KratosServiceUtility
 {
     public partial class App : Application
     {

@@ -13,7 +13,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Kratos_Service_utility
+namespace KratosServiceUtility
 {
     public partial class MainWindow : Window
     {
@@ -216,7 +216,7 @@ namespace Kratos_Service_utility
             try
             {
                 var assembly = Assembly.GetExecutingAssembly();
-                using Stream? stream = assembly.GetManifestResourceStream("Kratos_Service_utility.Resources.Electronscape - Sanxion Loader.mp3");
+                using Stream? stream = assembly.GetManifestResourceStream("KratosServiceUtility.Resources.Electronscape - Sanxion Loader.mp3");
                 if (stream == null)
                 {
                     return;
