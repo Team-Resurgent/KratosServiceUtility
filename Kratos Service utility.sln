@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11222.15 d18.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kratos Service utility", "src\Kratos Service utility.csproj", "{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}.Debug|x64.ActiveCfg = Debug|x64
+		{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}.Debug|x64.Build.0 = Debug|x64
+		{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}.Release|x64.ActiveCfg = Release|x64
+		{CE9B4230-9DD6-8EA2-8B53-8AD6344D2219}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6748CF53-4D05-4E2D-9676-AA378BC01383}
+	EndGlobalSection
+EndGlobal

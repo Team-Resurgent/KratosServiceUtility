@@ -1,0 +1,69 @@
+<Window xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+x:Class="Kratos_Service_utility.MessageBox"
+        Width="400"
+        MinWidth="300"
+        MinHeight="150"
+        MaxWidth="600"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        SizeToContent="Height"
+        Background="#1e1e1e">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Icon and Title -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+            <TextBlock x:Name="IconTextBlock"
+                      FontSize="32"
+                      Margin="0,0,15,0"
+                      VerticalAlignment="Center"
+                      IsVisible="False" />
+            <TextBlock Text="{Binding Title}"
+                      FontSize="16"
+                      FontWeight="Bold"
+                      Foreground="#e5e7eb"
+                      VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Message -->
+        <TextBlock x:Name="MessageTextBlock"
+                  Grid.Row="1"
+                  Text="{Binding Message}"
+                  TextWrapping="Wrap"
+                  Foreground="#cbd5f5"
+                  Margin="0,0,0,20" />
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2"
+                   Orientation="Horizontal"
+                   HorizontalAlignment="Right"
+                   Spacing="10">
+            <Button x:Name="OkButton"
+                   Content="OK"
+                   Width="80"
+                   Height="30"
+                   Click="OkButton_Click"
+                   IsVisible="{Binding ShowOk}" />
+            <Button x:Name="YesButton"
+                   Content="Yes"
+                   Width="80"
+                   Height="30"
+                   Click="YesButton_Click"
+                   IsVisible="{Binding ShowYes}" />
+            <Button x:Name="NoButton"
+                   Content="No"
+                   Width="80"
+                   Height="30"
+                   Click="NoButton_Click"
+                   IsVisible="{Binding ShowNo}" />
+        </StackPanel>
+    </Grid>
+</Window>
+

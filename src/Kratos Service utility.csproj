@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <RootNamespace>Kratos_Service_utility</RootNamespace>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <ApplicationIcon>kratos.ico</ApplicationIcon>
+        <AssemblyName>ktatosserviceutility</AssemblyName>
+        <SelfContained>true</SelfContained>
+        <TrimUnusedDependencies>false</TrimUnusedDependencies>
+        <PublishReadyToRun>true</PublishReadyToRun>
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    </PropertyGroup>
+    <ItemGroup>
+        <None Remove="Resources\Electronscape - Sanxion Loader.mp3" />
+        <None Remove="Resources\kratos.png" />
+    </ItemGroup>
+    <ItemGroup>
+        <AvaloniaResource Include="Resources\kratos.png" />
+    </ItemGroup>
+    <ItemGroup>
+        <Content Include="kratos.ico" />
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Resources\Electronscape - Sanxion Loader.mp3" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="bass.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="libbass.so">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="libbass.dylib">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia" Version="11.0.10" />
+        <PackageReference Include="Avalonia.Desktop" Version="11.0.10" />
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.10" />
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.10" />
+        <PackageReference Include="ManagedBass" Version="4.0.2" />
+        <PackageReference Include="System.IO.Ports" Version="10.0.0" />
+    </ItemGroup>
+
+</Project>
