@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <ApplicationIcon>kratos.ico</ApplicationIcon>
-        <AssemblyName>ktatosserviceutility</AssemblyName>
+        <AssemblyName>kratosserviceutility</AssemblyName>
         <SelfContained>true</SelfContained>
         <TrimUnusedDependencies>false</TrimUnusedDependencies>
         <PublishReadyToRun>true</PublishReadyToRun>
