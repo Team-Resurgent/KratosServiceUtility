@@ -1,0 +1,106 @@
+name: BuildKratosServiceUtility
+
+on:
+  push:
+    branches: [ "main", "workflow" ]
+  pull_request:
+    branches: [ "main", "workflow" ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - os_flavor: win-x64
+            arch: x64
+            archive_ext: zip
+            project: KratosServiceUtility
+            project_path: src/KratosServiceUtility
+            project_lowercase: kratosserviceutility
+          - os_flavor: linux-x64
+            arch: x64
+            archive_ext: tar
+            project: KratosServiceUtility
+            project_path: src/KratosServiceUtility
+            project_lowercase: kratosserviceutility
+          - os_flavor: osx-x64
+            arch: x64
+            archive_ext: tar
+            project: KratosServiceUtility
+            project_path: src/KratosServiceUtility
+            project_lowercase: kratosserviceutility
+          - os_flavor: osx-arm64
+            arch: arm64
+            archive_ext: tar
+            project: KratosServiceUtility
+            project_path: src/KratosServiceUtility
+            project_lowercase: kratosserviceutility
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+    
+    - name: Publish
+      run: |
+        dotnet publish ./${{ matrix.project_path }}.csproj -p:Platform=${{ matrix.arch }} -r ${{ matrix.os_flavor }} -c Release -p:SelfContained=true -p:PublishSingleFile=true -p:PublishReadyToRun=true -p:TrimUnusedDependencies=false -p:DebugType=None -p:DebugSymbols=false -p:AvaloniaUseCompiledBindingsByDefault=true -p:IncludeNativeLibrariesForSelfExtract=true --output ${{ github.workspace }}/artifacts/${{ matrix.project }}/${{ matrix.os_flavor }}-${{ matrix.arch }} -maxcpucount:1
+
+    - name: Check publish output
+      run: ls -laR ${{ github.workspace }}/artifacts/${{ matrix.project }}/
+
+    - name: Chmod (Unix)
+      if: ${{ matrix.os_flavor == 'linux-x64' || matrix.os_flavor == 'osx-x64' || matrix.os_flavor == 'osx-arm64'}}
+      run: chmod +x ${{ github.workspace }}/artifacts/${{ matrix.project }}/${{ matrix.os_flavor }}-${{ matrix.arch }}/${{ matrix.project_lowercase }}
+    
+    - name: Compress binaries
+      run: 7z a ${{ github.workspace }}/${{ matrix.project }}-${{ matrix.os_flavor }}.${{ matrix.archive_ext }} ${{ github.workspace }}/artifacts/${{ matrix.project }}/${{ matrix.os_flavor }}-${{ matrix.arch }}/*
+    
+    - name: List directories and files
+      run: find .
+      
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.project }}-${{ matrix.os_flavor }}
+        path: ${{ github.workspace }}/${{ matrix.project }}-${{ matrix.os_flavor }}.${{ matrix.archive_ext }}
+        if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/tags/')
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      id: artifacts
+      with:
+        path: pipeline/build/artifacts
+        merge-multiple: true
+    - name: List Files
+      run: |
+        ls -la ${{ steps.artifacts.outputs.download-path }}
+    - name: Create draft Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/heads/main')
+      with:
+        tag_name: latest
+        draft: true
+        files: |
+          ${{ github.workspace }}/README.md
+          ${{ steps.artifacts.outputs.download-path }}/*
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          ${{ github.workspace }}/README.md
+          ${{ steps.artifacts.outputs.download-path }}/*
