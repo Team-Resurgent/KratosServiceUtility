@@ -127,7 +127,25 @@ namespace EspDotNet.Communication
 
         public async Task<int> ReadRawAsync(byte[] buffer, CancellationToken token)
         {
-            return await _serialPort.BaseStream.ReadAsync(buffer, 0, buffer.Length, token);
+            const int pollIntervalMs = 50;
+            const int maxWaitTimeMs = 200;
+            int elapsedMs = 0;
+
+            while (_serialPort.BytesToRead == 0 && elapsedMs < maxWaitTimeMs && !token.IsCancellationRequested)
+            {
+                await Task.Delay(pollIntervalMs, token);
+                elapsedMs += pollIntervalMs;
+            }
+
+            token.ThrowIfCancellationRequested();
+
+            if (_serialPort.BytesToRead > 0)
+            {
+                int bytesToRead = Math.Min(buffer.Length, _serialPort.BytesToRead);
+                return _serialPort.Read(buffer, 0, bytesToRead);
+            }
+
+            return 0;
         }
 
         /// <summary>
