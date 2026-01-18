@@ -339,9 +339,8 @@ namespace KratosServiceUtility
             try
             {
                 SetStatus("Checking environment...", 10);
-                await Task.Delay(100); // Brief delay for UI update
+                await Task.Delay(100);
                 
-                // Check if any serial ports are available
                 var ports = SerialPort.GetPortNames();
                 if (ports.Length == 0)
                 {
@@ -359,7 +358,7 @@ namespace KratosServiceUtility
             {
                 SetStatus("Environment check failed.", 0);
                 _ = ShowMessageBoxAsync(
-                    $"Environment check failed:\n\n{ex}",
+                    $"Environment check failed.",
                     "Error",
                     MessageBoxButtons.Ok,
                     MessageBoxIcon.Error);
@@ -449,7 +448,7 @@ namespace KratosServiceUtility
                     try
                     {
                         SetStatus("Opening serial port...", 5);
-                        toolbox.OpenSerial(communicator, port, 115200);
+                        toolbox.OpenSerial(communicator, port, 921600);
                         
                         SetStatus("Starting bootloader...", 10);
                         var bootloader = await toolbox.StartBootloaderAsync(communicator);
@@ -460,15 +459,12 @@ namespace KratosServiceUtility
                         
                         var firmwareData = await File.ReadAllBytesAsync(fw);
                         
-                        // Start softloader for erase and flash operations
                         SetStatus("Loading softloader...", 25);
                         var softloader = await toolbox.StartSoftloaderAsync(communicator, bootloader, chip);
                         
-                        // Erase flash
                         SetStatus("Erasing flash memory...", 30);
                         await toolbox.EraseFlashAsync(softloader);
                         
-                        // Create firmware provider from file
                         var firmwareProvider = new FirmwareProvider(
                             entryPoint: 0,
                             segments: new List<IFirmwareSegmentProvider>
@@ -477,7 +473,6 @@ namespace KratosServiceUtility
                             }
                         );
                         
-                        // Upload firmware
                         SetStatus("Writing firmware data...", 40);
                         var uploadTool = toolbox.CreateUploadFlashTool(softloader, chip);
                         var progress = new Progress<float>(p =>
@@ -499,13 +494,13 @@ namespace KratosServiceUtility
                 });
 
                 SetStatus("Firmware flashed successfully!", 100);
-                _ = ShowMessageBoxAsync("Firmware flashed to 0x0 successfully!",
+                _ = ShowMessageBoxAsync("Firmware flashed successfully!",
                     "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
                 SetStatus("Flash operation failed.", 0);
-                _ = ShowMessageBoxAsync($"Failed to flash firmware:\n\n{ex}",
+                _ = ShowMessageBoxAsync($"Failed to flash firmware.",
                     "Flashing Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
             }
             finally
@@ -553,7 +548,7 @@ namespace KratosServiceUtility
                     try
                     {
                         SetStatus("Opening serial port...", 5);
-                        toolbox.OpenSerial(communicator, port, 115200);
+                        toolbox.OpenSerial(communicator, port, 921600);
                         
                         SetStatus("Starting bootloader...", 10);
                         var bootloader = await toolbox.StartBootloaderAsync(communicator);
@@ -562,11 +557,9 @@ namespace KratosServiceUtility
                         var chip = await toolbox.DetectChipTypeAsync(bootloader);
                         SetStatus($"Detected {chip} chip...", 20);
                         
-                        // Start softloader for erase operation
                         SetStatus("Loading softloader...", 25);
                         var softloader = await toolbox.StartSoftloaderAsync(communicator, bootloader, chip);
                         
-                        // Erase flash
                         SetStatus("Erasing flash memory...", 50);
                         await toolbox.EraseFlashAsync(softloader);
                         
@@ -639,7 +632,7 @@ namespace KratosServiceUtility
             SetControlsEnabled(false);
             SetStatus("Initializing dump operation...", 0);
 
-            const int flashSize = 0x400000; // 4MB default
+            const int flashSize = 0x400000;
 
             try
             {
@@ -651,7 +644,7 @@ namespace KratosServiceUtility
                     try
                     {
                         SetStatus("Opening serial port...", 5);
-                        toolbox.OpenSerial(communicator, port, 115200);
+                        toolbox.OpenSerial(communicator, port, 921600);
                         
                         SetStatus("Starting bootloader...", 10);
                         var bootloader = await toolbox.StartBootloaderAsync(communicator);
@@ -660,11 +653,9 @@ namespace KratosServiceUtility
                         var chip = await toolbox.DetectChipTypeAsync(bootloader);
                         SetStatus($"Detected {chip} chip...", 20);
                         
-                        // Start softloader for read operation
                         SetStatus("Loading softloader...", 25);
                         var softloader = await toolbox.StartSoftloaderAsync(communicator, bootloader, chip);
                         
-                        // Read flash
                         SetStatus("Reading flash memory...", 30);
                         var readTool = toolbox.CreateReadFlashTool(communicator, softloader, chip);
                         readTool.Progress = new Progress<float>(p =>
@@ -690,7 +681,7 @@ namespace KratosServiceUtility
             catch (Exception ex)
             {
                 SetStatus("Dump operation failed.", 0);
-                _ = ShowMessageBoxAsync($"Failed to dump firmware:\n\n{ex}",
+                _ = ShowMessageBoxAsync($"Failed to dump firmware.",
                     "Dump Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
             }
             finally
