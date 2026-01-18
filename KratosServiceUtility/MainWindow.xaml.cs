@@ -354,11 +354,23 @@ namespace KratosServiceUtility
                     {
                         try
                         {
-                            Process.Start(new ProcessStartInfo
+                            string url = "https://www.python.org/downloads/";
+                            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                             {
-                                FileName = "https://www.python.org/downloads/",
-                                UseShellExecute = true
-                            });
+                                Process.Start(new ProcessStartInfo
+                                {
+                                    FileName = url,
+                                    UseShellExecute = true
+                                });
+                            }
+                            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                            {
+                                Process.Start("open", url);
+                            }
+                            else // Linux
+                            {
+                                Process.Start("xdg-open", url);
+                            }
                         }
                         catch { }
                     }
@@ -554,7 +566,7 @@ namespace KratosServiceUtility
 
             if (PortCombo.SelectedItem is not string port || string.IsNullOrEmpty(port))
             {
-                _ = ShowMessageBoxAsync("Select a COM port first.", "Input Missing",
+                _ = ShowMessageBoxAsync("Select a serial port first.", "Input Missing",
                     MessageBoxButtons.Ok, MessageBoxIcon.Warning);
                 return;
             }
@@ -614,7 +626,7 @@ namespace KratosServiceUtility
 
             if (PortCombo.SelectedItem is not string port || string.IsNullOrEmpty(port))
             {
-                _ = ShowMessageBoxAsync("Select a COM port first.", "Input Missing",
+                _ = ShowMessageBoxAsync("Select a serial port first.", "Input Missing",
                     MessageBoxButtons.Ok, MessageBoxIcon.Warning);
                 return;
             }
@@ -669,7 +681,7 @@ namespace KratosServiceUtility
 
             if (PortCombo.SelectedItem is not string port || string.IsNullOrEmpty(port))
             {
-                _ = ShowMessageBoxAsync("Select a COM port first.", "Input Missing",
+                _ = ShowMessageBoxAsync("Select a serial port first.", "Input Missing",
                     MessageBoxButtons.Ok, MessageBoxIcon.Warning);
                 return;
             }
