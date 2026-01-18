@@ -1,4 +1,5 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -29,7 +30,14 @@ namespace KratosServiceUtility
 
     public partial class MessageBox : Window
     {
-        private string _message = "";
+        public static readonly StyledProperty<string> MessageProperty =
+            AvaloniaProperty.Register<MessageBox, string>(nameof(Message), "");
+
+        public static readonly StyledProperty<MessageBoxButtons> ButtonsProperty =
+            AvaloniaProperty.Register<MessageBox, MessageBoxButtons>(nameof(Buttons), MessageBoxButtons.Ok);
+
+        public static readonly StyledProperty<MessageBoxIcon> IconProperty =
+            AvaloniaProperty.Register<MessageBox, MessageBoxIcon>(nameof(Icon), MessageBoxIcon.None);
 
         public new string Title
         {
@@ -39,15 +47,21 @@ namespace KratosServiceUtility
 
         public string Message
         {
-            get => _message;
-            set
-            {
-                _message = value;
-            }
+            get => GetValue(MessageProperty);
+            set => SetValue(MessageProperty, value);
         }
 
-        public MessageBoxButtons Buttons { get; set; } = MessageBoxButtons.Ok;
-        public new MessageBoxIcon Icon { get; set; } = MessageBoxIcon.None;
+        public MessageBoxButtons Buttons
+        {
+            get => GetValue(ButtonsProperty);
+            set => SetValue(ButtonsProperty, value);
+        }
+
+        public MessageBoxIcon Icon
+        {
+            get => GetValue(IconProperty);
+            set => SetValue(IconProperty, value);
+        }
 
         public bool ShowOk => Buttons == MessageBoxButtons.Ok;
         public bool ShowYes => Buttons == MessageBoxButtons.YesNo;
@@ -60,6 +74,35 @@ namespace KratosServiceUtility
             InitializeComponent();
             DataContext = this;
         }
+
+        protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+        {
+            base.OnPropertyChanged(change);
+
+            // Update computed properties when Buttons changes
+            if (change.Property == ButtonsProperty)
+            {
+                RaisePropertyChanged(ShowOkProperty, !ShowOk, ShowOk);
+                RaisePropertyChanged(ShowYesProperty, !ShowYes, ShowYes);
+                RaisePropertyChanged(ShowNoProperty, !ShowNo, ShowNo);
+            }
+        }
+
+        // Create observable properties for the computed values
+        public static readonly DirectProperty<MessageBox, bool> ShowOkProperty =
+            AvaloniaProperty.RegisterDirect<MessageBox, bool>(
+                nameof(ShowOk),
+                o => o.ShowOk);
+
+        public static readonly DirectProperty<MessageBox, bool> ShowYesProperty =
+            AvaloniaProperty.RegisterDirect<MessageBox, bool>(
+                nameof(ShowYes),
+                o => o.ShowYes);
+
+        public static readonly DirectProperty<MessageBox, bool> ShowNoProperty =
+            AvaloniaProperty.RegisterDirect<MessageBox, bool>(
+                nameof(ShowNo),
+                o => o.ShowNo);
 
         private void OkButton_Click(object? sender, RoutedEventArgs e)
         {

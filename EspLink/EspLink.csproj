@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>EL</RootNamespace>
+    <AssemblyName>esplink</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Stubs\esp32.data" />
+    <EmbeddedResource Include="Stubs\esp32.idx" />
+    <EmbeddedResource Include="Stubs\esp32.text" />
+    <EmbeddedResource Include="Stubs\esp32s3.data" />
+    <EmbeddedResource Include="Stubs\esp32s3.idx" />
+    <EmbeddedResource Include="Stubs\esp32s3.text" />
+  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="System.IO.Ports" Version="10.0.0" />
+    </ItemGroup>
+</Project>

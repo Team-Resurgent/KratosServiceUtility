@@ -6,13 +6,20 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using EL;
 using ManagedBass;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Ports;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
+//using EspDotNet;
+//using EspDotNet.Tools;
+//using EspDotNet.Tools.Firmware;
+//using EspDotNet.Communication;
 
 namespace KratosServiceUtility
 {
@@ -32,7 +39,6 @@ namespace KratosServiceUtility
         private bool _musicPlaying;
         private int _musicHandle; 
 
-        private string? _pythonPath;
         private bool _envReady;
 
         public MainWindow()
@@ -335,64 +341,17 @@ namespace KratosServiceUtility
         {
             try
             {
-                SetStatus("Checking for Python...", 5);
-                _pythonPath = await FindPythonAsync();
-
-                if (_pythonPath == null)
+                SetStatus("Checking environment...", 10);
+                await Task.Delay(100);
+                
+                var ports = SerialPort.GetPortNames();
+                if (ports.Length == 0)
                 {
-                    SetStatus("Python 3 not found.", 0);
-
-                    var result = await ShowMessageBoxAsync(
-                        "Python 3 was not found on this system.\n\n" +
-                        "This utility expects a system Python 3 install and uses pyserial + esptool for flashing.\n\n" +
-                        "Click YES to open the official Python downloads page in your browser.",
-                        "Python Not Installed",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Warning);
-
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        try
-                        {
-                            string url = "https://www.python.org/downloads/";
-                            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                            {
-                                Process.Start(new ProcessStartInfo
-                                {
-                                    FileName = url,
-                                    UseShellExecute = true
-                                });
-                            }
-                            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                            {
-                                Process.Start("open", url);
-                            }
-                            else // Linux
-                            {
-                                Process.Start("xdg-open", url);
-                            }
-                        }
-                        catch { }
-                    }
-
-                    _envReady = false;
-                    return;
+                    SetStatus("No serial ports detected.", 50);
                 }
-
-                SetStatus($"Python detected at: {_pythonPath}", 10);
-
-                SetStatus("Checking pip...", 15);
-                await EnsurePipAsync(_pythonPath);
-
-                string[] modules = { "pyserial", "esptool" };
-                double step = 70.0 / modules.Length;
-                double pct = 20.0;
-
-                foreach (var m in modules)
+                else
                 {
-                    SetStatus($"Checking Python module: {m}...", pct);
-                    await EnsureModuleAsync(_pythonPath, m);
-                    pct += step;
+                    SetStatus($"Found {ports.Length} serial port(s).", 50);
                 }
 
                 SetStatus("Environment ready.", 100);
@@ -402,112 +361,12 @@ namespace KratosServiceUtility
             {
                 SetStatus("Environment check failed.", 0);
                 _ = ShowMessageBoxAsync(
-                    $"Environment check failed:\n\n{ex}",
+                    $"Environment check failed.",
                     "Error",
                     MessageBoxButtons.Ok,
                     MessageBoxIcon.Error);
                 _envReady = false;
             }
-        }
-
-        private static async Task<string?> FindPythonAsync()
-        {
-            string[] candidates = { "python", "python3" };
-            
-            // Use "where" on Windows, "which" on Linux/macOS
-            string command = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which";
-
-            foreach (var c in candidates)
-            {
-                try
-                {
-                    var result = await RunProcessCaptureAsync(command, c);
-                    if (result.exitCode == 0 && !string.IsNullOrWhiteSpace(result.stdout))
-                    {
-                        string? line = result.stdout
-                            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                            .FirstOrDefault();
-                        if (!string.IsNullOrEmpty(line) && File.Exists(line))
-                            return line;
-                    }
-                }
-                catch { }
-            }
-
-            return null;
-        }
-
-        private static async Task EnsurePipAsync(string pythonPath)
-        {
-            var pipCheck = await RunProcessCaptureAsync(
-                pythonPath, "-m pip --version");
-
-            if (pipCheck.exitCode == 0)
-                return;
-
-            await RunProcessCaptureAsync(
-                pythonPath, "-m ensurepip --default-pip");
-        }
-
-        private async Task EnsureModuleAsync(string pythonPath, string moduleName)
-        {
-            var showResult = await RunProcessCaptureAsync(
-                pythonPath, $"-m pip show {moduleName}");
-
-            if (showResult.exitCode == 0)
-                return;
-
-            var install = await RunProcessCaptureAsync(
-                pythonPath, $"-m pip install --user {moduleName}");
-
-            if (install.exitCode != 0)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to install {moduleName}: {install.stderr}");
-            }
-        }
-
-        private static Task<(int exitCode, string stdout, string stderr)> RunProcessCaptureAsync(
-            string fileName, string arguments)
-        {
-            var tcs = new TaskCompletionSource<(int, string, string)>();
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = fileName,
-                Arguments = arguments,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-
-            var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-            var sbOut = new StringBuilder();
-            var sbErr = new StringBuilder();
-
-            proc.OutputDataReceived += (_, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                    sbOut.AppendLine(e.Data);
-            };
-            proc.ErrorDataReceived += (_, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                    sbErr.AppendLine(e.Data);
-            };
-
-            proc.Exited += (_, __) =>
-            {
-                tcs.TrySetResult((proc.ExitCode, sbOut.ToString(), sbErr.ToString()));
-                proc.Dispose();
-            };
-
-            proc.Start();
-            proc.BeginOutputReadLine();
-            proc.BeginErrorReadLine();
-
-            return tcs.Task;
         }
 
         private void RefreshPortsButton_Click(object? sender, RoutedEventArgs e)
@@ -555,11 +414,31 @@ namespace KratosServiceUtility
             }
         }
 
+        internal class FlashProgress : IProgress<int>
+        {
+            int _old = -1;
+
+            private MainWindow _owner;
+
+            public string Message { get; set; } = string.Empty;
+
+            public FlashProgress(MainWindow owner)
+            {
+                _owner = owner;
+            }
+
+
+            public void Report(int value)
+            {
+                _owner.SetStatus(string.Format(Message, value), value);
+            }
+        }
+
         private async void FlashButton_Click(object? sender, RoutedEventArgs e)
         {
-            if (!_envReady || string.IsNullOrEmpty(_pythonPath))
+            if (!_envReady)
             {
-                _ = ShowMessageBoxAsync("Environment is not ready (Python / modules missing).", "Error",
+                _ = ShowMessageBoxAsync("Environment is not ready.", "Error",
                     MessageBoxButtons.Ok, MessageBoxIcon.Error);
                 return;
             }
@@ -582,30 +461,36 @@ namespace KratosServiceUtility
             SetControlsEnabled(false);
             SetStatus("Initializing flash operation...", 0);
 
-            var args = new List<string>
-            {
-                "--port", port,
-                "--baud", "921600",
-                "--before", "default_reset",
-                "--after", "hard_reset",
-                "write_flash", "--erase-all",
-                "--flash_mode", "dio",
-                "--flash_freq", "80m",
-                "--flash_size", "detect",
-                "0x0", fw
-            };
-
             try
             {
-                await RunEsptoolAsync(_pythonPath!, args, "Flash");
+                await Task.Run(async () =>
+                {
+                    var flashProgress = new FlashProgress(this);
+
+                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+
+                    link.SerialHandshake = Handshake.RequestToSend;
+                    flashProgress.Message = "Connecting...";
+                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+
+                    flashProgress.Message = "Running stub... {0}%";
+                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+
+                    using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
+                    flashProgress.Message = "Writing firmware... {0}%";
+                    await link.FlashAsync(default, stm, true, 16384, 0x10000, 3, false, link.DefaultTimeout, flashProgress);
+                    await link.ResetAsync(default);
+                });
+
                 SetStatus("Firmware flashed successfully!", 100);
-                _ = ShowMessageBoxAsync("Firmware (merged) flashed to 0x0 successfully!",
+                _ = ShowMessageBoxAsync("Firmware flashed successfully!",
                     "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
                 SetStatus("Flash operation failed.", 0);
-                _ = ShowMessageBoxAsync($"Failed to flash firmware:\n\n{ex}",
+                _ = ShowMessageBoxAsync($"Failed to flash firmware.",
                     "Flashing Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
             }
             finally
@@ -617,9 +502,9 @@ namespace KratosServiceUtility
 
         private async void EraseButton_Click(object? sender, RoutedEventArgs e)
         {
-            if (!_envReady || string.IsNullOrEmpty(_pythonPath))
+            if (!_envReady)
             {
-                _ = ShowMessageBoxAsync("Environment is not ready (Python / modules missing).", "Error",
+                _ = ShowMessageBoxAsync("Environment is not ready.", "Error",
                     MessageBoxButtons.Ok, MessageBoxIcon.Error);
                 return;
             }
@@ -643,16 +528,27 @@ namespace KratosServiceUtility
             SetControlsEnabled(false);
             SetStatus("Initializing erase operation...", 0);
 
-            var args = new List<string>
-            {
-                "--port", port,
-                "--baud", "921600",
-                "erase_flash"
-            };
-
             try
             {
-                await RunEsptoolAsync(_pythonPath!, args, "Erase");
+                await Task.Run(async () =>
+                {
+                    var flashProgress = new FlashProgress(this);
+
+                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+
+                    link.SerialHandshake = Handshake.RequestToSend;
+                    flashProgress.Message = "Connecting...";
+                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+
+                    flashProgress.Message = "Running stub... {0}%";
+                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+
+                    // todo: erase code
+
+                    await link.ResetAsync(default);
+                });
+
                 SetStatus("Flash memory erased successfully!", 100);
                 _ = ShowMessageBoxAsync("Flash memory erased successfully!",
                     "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
@@ -672,9 +568,9 @@ namespace KratosServiceUtility
 
         private async void DumpButton_Click(object? sender, RoutedEventArgs e)
         {
-            if (!_envReady || string.IsNullOrEmpty(_pythonPath))
+            if (!_envReady)
             {
-                _ = ShowMessageBoxAsync("Environment is not ready (Python / modules missing).", "Error",
+                _ = ShowMessageBoxAsync("Environment is not ready.", "Error",
                     MessageBoxButtons.Ok, MessageBoxIcon.Error);
                 return;
             }
@@ -712,21 +608,29 @@ namespace KratosServiceUtility
             SetControlsEnabled(false);
             SetStatus("Initializing dump operation...", 0);
 
-            const int flashSize = 0x400000; // 4MB default
-
-            var args = new List<string>
-            {
-                "--port", port,
-                "--baud", "921600",
-                "read_flash",
-                "0x0",
-                $"0x{flashSize:x}",
-                savePath
-            };
+            const int flashSize = 0x400000;
 
             try
             {
-                await RunEsptoolAsync(_pythonPath!, args, "Dump");
+                await Task.Run(async () =>
+                {
+                    var flashProgress = new FlashProgress(this);
+
+                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+
+                    link.SerialHandshake = Handshake.RequestToSend;
+                    flashProgress.Message = "Connecting...";
+                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+
+                    flashProgress.Message = "Running stub... {0}%";
+                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+
+                    // todo: dump code savePath
+
+                    await link.ResetAsync(default);
+                });
+
                 SetStatus("Firmware dumped successfully!", 100);
                 _ = ShowMessageBoxAsync($"Firmware dumped successfully to:\n{savePath}",
                     "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
@@ -734,7 +638,7 @@ namespace KratosServiceUtility
             catch (Exception ex)
             {
                 SetStatus("Dump operation failed.", 0);
-                _ = ShowMessageBoxAsync($"Failed to dump firmware:\n\n{ex}",
+                _ = ShowMessageBoxAsync($"Failed to dump firmware.",
                     "Dump Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
             }
             finally
@@ -744,136 +648,6 @@ namespace KratosServiceUtility
             }
         }
 
-        private async Task RunEsptoolAsync(string pythonPath, List<string> args, string action)
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = pythonPath,
-                Arguments = $"-u -m esptool {BuildArgumentString(args)}",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-
-            var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-            proc.Start();
-
-            var readOutTask = Task.Run(async () =>
-            {
-                while (!proc.HasExited)
-                {
-                    string? line = await proc.StandardOutput.ReadLineAsync();
-                    if (line == null) break;
-                    HandleEsptoolLine(line, action);
-                }
-
-                string? rest;
-                while ((rest = await proc.StandardOutput.ReadLineAsync()) != null)
-                {
-                    HandleEsptoolLine(rest, action);
-                }
-            });
-
-            var readErrTask = Task.Run(async () =>
-            {
-                while (!proc.HasExited)
-                {
-                    string? line = await proc.StandardError.ReadLineAsync();
-                    if (line == null) break;
-                    if (!string.IsNullOrWhiteSpace(line))
-                    {
-                        // optional: log stderr
-                    }
-                }
-            });
-
-            await Task.WhenAll(readOutTask, readErrTask);
-            proc.WaitForExit();
-
-            if (proc.ExitCode != 0)
-            {
-                throw new InvalidOperationException($"esptool exited with code {proc.ExitCode}");
-            }
-        }
-
-        private static string BuildArgumentString(IEnumerable<string> args)
-        {
-            return string.Join(" ", args.Select(a =>
-                string.IsNullOrEmpty(a) ? "" :
-                a.Contains(' ') ? $"\"{a}\"" : a));
-        }
-
-        private void HandleEsptoolLine(string line, string action)
-        {
-            line = line.Trim();
-            if (string.IsNullOrEmpty(line)) return;
-
-            if (line.Contains('%'))
-            {
-                string[] patterns = { @"\((\d+)\s*%\)", @"(\d+)%", @"(\d+)\s*%" };
-                foreach (var pat in patterns)
-                {
-                    var m = Regex.Match(line, pat);
-                    if (m.Success && int.TryParse(m.Groups[1].Value, out int pct))
-                    {
-                        SetStatus($"{action} in progress... {pct}%", pct);
-                        return;
-                    }
-                }
-            }
-
-            if (action == "Flash")
-            {
-                if (line.Contains("Chip is"))
-                    SetStatus("Detected ESP32 chip, preparing flash...", 5);
-                else if (line.Contains("Changing baud rate"))
-                    SetStatus("Configuring communication speed...", 10);
-                else if (line.Contains("Erasing flash"))
-                    SetStatus("Erasing flash memory...", 20);
-                else if (line.Contains("Writing at"))
-                {
-                    var match = Regex.Match(line, @"0x([0-9a-fA-F]+)");
-                    if (match.Success)
-                    {
-                        int addr = Convert.ToInt32(match.Groups[1].Value, 16);
-                        double progress = Math.Min(30 + (addr / 0x400000d) * 60, 90);
-                        SetStatus($"Writing firmware data at 0x{addr:X8}...", progress);
-                    }
-                }
-                else if (line.Contains("Hash of data verified"))
-                    SetStatus("Verifying written data...", 95);
-                else if (line.Contains("Leaving") || line.Contains("Hard resetting"))
-                    SetStatus("Finalizing flash operation...", 98);
-            }
-            else if (action == "Erase")
-            {
-                if (line.Contains("Chip is"))
-                    SetStatus("Detected ESP32 chip...", 10);
-                else if (line.Contains("Erasing flash"))
-                    SetStatus("Erasing flash memory...", 50);
-                else if (line.Contains("Chip erase completed"))
-                    SetStatus("Flash erase completed...", 90);
-                else if (line.Contains("Hard resetting"))
-                    SetStatus("Finalizing erase operation...", 95);
-            }
-            else if (action == "Dump")
-            {
-                if (line.Contains("Chip is"))
-                    SetStatus("Detected ESP32 chip...", 5);
-                else if (line.Contains("Reading flash"))
-                    SetStatus("Reading flash memory...", 20);
-                else if (line.Contains("Read") && line.Contains("bytes"))
-                {
-                    var m = Regex.Match(line, @"(\d+)\s+bytes");
-                    if (m.Success && int.TryParse(m.Groups[1].Value, out int bytesRead))
-                    {
-                        double progress = Math.Min(20 + (bytesRead / 0x400000d) * 70, 90);
-                        SetStatus($"Reading firmware data... {bytesRead:N0} bytes", progress);
-                    }
-                }
-            }
-        }
 
         private async Task<MessageBoxResult> ShowMessageBoxAsync(
             string message, string title, MessageBoxButtons buttons, MessageBoxIcon icon)
