@@ -156,6 +156,7 @@
                         Click="FlashButton_Click" />
 
                 <Button x:Name="EraseButton"
+                        IsVisible="False"
                         Canvas.Left="180" Canvas.Top="235"
                         Width="150" Height="40"
                         Content="✖ ERASE MEMORY"
@@ -170,6 +171,7 @@
                         Click="EraseButton_Click" />
 
                 <Button x:Name="DumpButton"
+                        IsVisible="False"
                         Canvas.Left="335" Canvas.Top="235"
                         Width="150" Height="40"
                         Content="⬇ DUMP FIRMWARE"

@@ -6,17 +6,20 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using EL;
 using ManagedBass;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Ports;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using EspDotNet;
-using EspDotNet.Tools;
-using EspDotNet.Tools.Firmware;
-using EspDotNet.Communication;
+using System.Threading;
+//using EspDotNet;
+//using EspDotNet.Tools;
+//using EspDotNet.Tools.Firmware;
+//using EspDotNet.Communication;
 
 namespace KratosServiceUtility
 {
@@ -411,6 +414,26 @@ namespace KratosServiceUtility
             }
         }
 
+        internal class FlashProgress : IProgress<int>
+        {
+            int _old = -1;
+
+            private MainWindow _owner;
+
+            public string Message { get; set; } = string.Empty;
+
+            public FlashProgress(MainWindow owner)
+            {
+                _owner = owner;
+            }
+
+
+            public void Report(int value)
+            {
+                _owner.SetStatus(string.Format(Message, value), value);
+            }
+        }
+
         private async void FlashButton_Click(object? sender, RoutedEventArgs e)
         {
             if (!_envReady)
@@ -442,55 +465,22 @@ namespace KratosServiceUtility
             {
                 await Task.Run(async () =>
                 {
-                    var toolbox = new ESPToolbox();
-                    var communicator = toolbox.CreateCommunicator();
-                    
-                    try
-                    {
-                        SetStatus("Opening serial port...", 5);
-                        toolbox.OpenSerial(communicator, port, 921600);
-                        
-                        SetStatus("Starting bootloader...", 10);
-                        var bootloader = await toolbox.StartBootloaderAsync(communicator);
-                        
-                        SetStatus("Detecting chip type...", 15);
-                        var chip = await toolbox.DetectChipTypeAsync(bootloader);
-                        SetStatus($"Detected {chip} chip, preparing flash...", 20);
-                        
-                        var firmwareData = await File.ReadAllBytesAsync(fw);
-                        
-                        SetStatus("Loading softloader...", 25);
-                        var softloader = await toolbox.StartSoftloaderAsync(communicator, bootloader, chip);
-                        
-                        SetStatus("Erasing flash memory...", 30);
-                        await toolbox.EraseFlashAsync(softloader);
-                        
-                        var firmwareProvider = new FirmwareProvider(
-                            entryPoint: 0,
-                            segments: new List<IFirmwareSegmentProvider>
-                            {
-                                new FirmwareSegmentProvider(0, firmwareData)
-                            }
-                        );
-                        
-                        SetStatus("Writing firmware data...", 40);
-                        var uploadTool = toolbox.CreateUploadFlashTool(softloader, chip);
-                        var progress = new Progress<float>(p =>
-                        {
-                            double progressPercent = 40 + (p * 50);
-                            SetStatus($"Writing firmware data... {(int)(p * 100)}%", progressPercent);
-                        });
-                        
-                        await toolbox.UploadFirmwareAsync(uploadTool, firmwareProvider, progress: progress);
-                        
-                        SetStatus("Finalizing flash operation...", 95);
-                        await toolbox.ResetDeviceAsync(communicator);
-                    }
-                    finally
-                    {
-                        toolbox.CloseSerial(communicator);
-                        communicator.Dispose();
-                    }
+                    var flashProgress = new FlashProgress(this);
+
+                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+
+                    link.SerialHandshake = Handshake.RequestToSend;
+                    flashProgress.Message = "Connecting...";
+                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+
+                    flashProgress.Message = "Running stub... {0}%";
+                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+
+                    using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
+                    flashProgress.Message = "Writing firmware... {0}%";
+                    await link.FlashAsync(default, stm, true, 16384, 0x10000, 3, false, link.DefaultTimeout, flashProgress);
+                    await link.ResetAsync(default);
                 });
 
                 SetStatus("Firmware flashed successfully!", 100);
@@ -542,35 +532,21 @@ namespace KratosServiceUtility
             {
                 await Task.Run(async () =>
                 {
-                    var toolbox = new ESPToolbox();
-                    var communicator = toolbox.CreateCommunicator();
-                    
-                    try
-                    {
-                        SetStatus("Opening serial port...", 5);
-                        toolbox.OpenSerial(communicator, port, 921600);
-                        
-                        SetStatus("Starting bootloader...", 10);
-                        var bootloader = await toolbox.StartBootloaderAsync(communicator);
-                        
-                        SetStatus("Detecting chip type...", 15);
-                        var chip = await toolbox.DetectChipTypeAsync(bootloader);
-                        SetStatus($"Detected {chip} chip...", 20);
-                        
-                        SetStatus("Loading softloader...", 25);
-                        var softloader = await toolbox.StartSoftloaderAsync(communicator, bootloader, chip);
-                        
-                        SetStatus("Erasing flash memory...", 50);
-                        await toolbox.EraseFlashAsync(softloader);
-                        
-                        SetStatus("Flash erase completed...", 90);
-                        await toolbox.ResetDeviceAsync(communicator);
-                    }
-                    finally
-                    {
-                        toolbox.CloseSerial(communicator);
-                        communicator.Dispose();
-                    }
+                    var flashProgress = new FlashProgress(this);
+
+                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+
+                    link.SerialHandshake = Handshake.RequestToSend;
+                    flashProgress.Message = "Connecting...";
+                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+
+                    flashProgress.Message = "Running stub... {0}%";
+                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+
+                    // todo: erase code
+
+                    await link.ResetAsync(default);
                 });
 
                 SetStatus("Flash memory erased successfully!", 100);
@@ -638,40 +614,21 @@ namespace KratosServiceUtility
             {
                 await Task.Run(async () =>
                 {
-                    var toolbox = new ESPToolbox();
-                    var communicator = toolbox.CreateCommunicator();
-                    
-                    try
-                    {
-                        SetStatus("Opening serial port...", 5);
-                        toolbox.OpenSerial(communicator, port, 921600);
-                        
-                        SetStatus("Starting bootloader...", 10);
-                        var bootloader = await toolbox.StartBootloaderAsync(communicator);
-                        
-                        SetStatus("Detecting chip type...", 15);
-                        var chip = await toolbox.DetectChipTypeAsync(bootloader);
-                        SetStatus($"Detected {chip} chip...", 20);
-                        
-                        SetStatus("Loading softloader...", 25);
-                        var softloader = await toolbox.StartSoftloaderAsync(communicator, bootloader, chip);
-                        
-                        SetStatus("Reading flash memory...", 30);
-                        var readTool = toolbox.CreateReadFlashTool(communicator, softloader, chip);
-                        readTool.Progress = new Progress<float>(p =>
-                        {
-                            double progressPercent = 30 + (p * 60);
-                            SetStatus($"Reading firmware data... {(int)(p * 100)}%", progressPercent);
-                        });
-                        
-                        using var fileStream = File.Create(savePath);
-                        await readTool.ReadFlashAsync(0, flashSize, fileStream, CancellationToken.None);
-                    }
-                    finally
-                    {
-                        toolbox.CloseSerial(communicator);
-                        communicator.Dispose();
-                    }
+                    var flashProgress = new FlashProgress(this);
+
+                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+
+                    link.SerialHandshake = Handshake.RequestToSend;
+                    flashProgress.Message = "Connecting...";
+                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+
+                    flashProgress.Message = "Running stub... {0}%";
+                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+
+                    // todo: dump code savePath
+
+                    await link.ResetAsync(default);
                 });
 
                 SetStatus("Firmware dumped successfully!", 100);

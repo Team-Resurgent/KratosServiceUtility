@@ -52,7 +52,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\ESPTool\EspDotNet.csproj" />
+      <ProjectReference Include="..\EspLink\EspLink.csproj" />
     </ItemGroup>
 
 </Project>
