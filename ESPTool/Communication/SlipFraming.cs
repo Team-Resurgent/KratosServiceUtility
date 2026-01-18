@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
@@ -30,10 +29,17 @@ namespace EspDotNet.Communication
         public async Task WriteFrameAsync(Frame frame, CancellationToken token)
         {
             byte[] escapedFrame = EscapeFrame(frame);
-            _serialPort.BaseStream.WriteByte(FrameDelimiter); // Start of frame
+            
+            // Use WriteAsync instead of WriteByte to avoid potential blocking
+            byte[] sof = new byte[] { FrameDelimiter };
+            await _serialPort.BaseStream.WriteAsync(sof, 0, 1, token);
+            
             await _serialPort.BaseStream.WriteAsync(escapedFrame, 0, escapedFrame.Length, token);
-            _serialPort.BaseStream.WriteByte(FrameDelimiter); // end of frame
-            await _serialPort.BaseStream.FlushAsync(token); // Ensure all data is sent
+            
+            byte[] eof = new byte[] { FrameDelimiter };
+            await _serialPort.BaseStream.WriteAsync(eof, 0, 1, token);
+            
+            await _serialPort.BaseStream.FlushAsync(token);
         }
 
         public async Task<Frame?> ReadFrameAsync(CancellationToken token)
@@ -60,11 +66,21 @@ namespace EspDotNet.Communication
 
         private async Task<byte> ReadByte(CancellationToken token)
         {
-            // Wait for data
+            // Wait for data with timeout to prevent infinite hangs
+            // Use longer timeout for operations like erase that can take 30+ seconds
+            const int maxWaitMs = 60000; // 60 seconds max wait per byte (erase operations need this)
+            int elapsedMs = 0;
+            const int pollIntervalMs = 10;
+            
             while (_serialPort.BytesToRead == 0)
             {
-                // Prevent busy waiting
-                await Task.Delay(10, token);
+                token.ThrowIfCancellationRequested();
+                
+                if (elapsedMs >= maxWaitMs)
+                    throw new TimeoutException("Timeout waiting for serial data");
+                    
+                await Task.Delay(pollIntervalMs, token);
+                elapsedMs += pollIntervalMs;
             }
 
             return (byte)_serialPort.ReadByte();
