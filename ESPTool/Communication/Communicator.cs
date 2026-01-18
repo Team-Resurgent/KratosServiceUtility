@@ -37,6 +37,10 @@ namespace EspDotNet.Communication
             {
                 _serialPort.PortName = portName;
                 _serialPort.BaudRate = baudRate;
+                // Disable flow control to prevent blocking on writes
+                _serialPort.Handshake = Handshake.None;
+                _serialPort.DtrEnable = true;
+                _serialPort.RtsEnable = true;
                 _serialPort.Open();
             }
         }
