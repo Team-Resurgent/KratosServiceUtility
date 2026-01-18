@@ -10,6 +10,7 @@ using ManagedBass;
 using System.Diagnostics;
 using System.IO.Ports;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -400,12 +401,15 @@ namespace KratosServiceUtility
         private static async Task<string?> FindPythonAsync()
         {
             string[] candidates = { "python", "python3" };
+            
+            // Use "where" on Windows, "which" on Linux/macOS
+            string command = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which";
 
             foreach (var c in candidates)
             {
                 try
                 {
-                    var result = await RunProcessCaptureAsync("where", c);
+                    var result = await RunProcessCaptureAsync(command, c);
                     if (result.exitCode == 0 && !string.IsNullOrWhiteSpace(result.stdout))
                     {
                         string? line = result.stdout
