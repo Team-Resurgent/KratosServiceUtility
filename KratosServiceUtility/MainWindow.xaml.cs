@@ -490,7 +490,8 @@ namespace KratosServiceUtility
             catch (Exception ex)
             {
                 SetStatus("Flash operation failed.", 0);
-                _ = ShowMessageBoxAsync($"Failed to flash firmware.",
+                LogError("Flash", ex);
+                _ = ShowMessageBoxAsync($"Failed to flash firmware.\n\n{ex}",
                     "Flashing Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
             }
             finally
@@ -638,7 +639,8 @@ namespace KratosServiceUtility
             catch (Exception ex)
             {
                 SetStatus("Dump operation failed.", 0);
-                _ = ShowMessageBoxAsync($"Failed to dump firmware.",
+                LogError("Dump", ex);
+                _ = ShowMessageBoxAsync($"Failed to dump firmware.\n\n{ex}",
                     "Dump Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
             }
             finally
@@ -648,6 +650,17 @@ namespace KratosServiceUtility
             }
         }
 
+
+        private static void LogError(string op, Exception ex)
+        {
+            try
+            {
+                string path = Path.Combine(AppContext.BaseDirectory, "kratos-flash.log");
+                File.AppendAllText(path,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {op} failed:\n{ex}\n\n");
+            }
+            catch { }
+        }
 
         private async Task<MessageBoxResult> ShowMessageBoxAsync(
             string message, string title, MessageBoxButtons buttons, MessageBoxIcon icon)

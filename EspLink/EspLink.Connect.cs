@@ -114,7 +114,10 @@ namespace EL
 			if (mode != EspConnectMode.NoReset)
 			{
 				DiscardInput();
-				strategy.ResetStrategy?.Invoke(port,cancellationToken);
+				if (strategy.ResetStrategy != null)
+				{
+					await strategy.ResetStrategy.Invoke(port, cancellationToken);
+				}
 				progress?.Report(prog++);
 
 				var str = Encoding.ASCII.GetString(await ReadExistingInputAsync());
