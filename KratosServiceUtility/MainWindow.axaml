@@ -72,7 +72,8 @@
                            Background="#020b1f"
                            Foreground="#e5e7eb"
                            BorderBrush="#1f2937"
-                           BorderThickness="1" />
+                           BorderThickness="1"
+                           SelectionChanged="PortCombo_SelectionChanged" />
                 <Button x:Name="RefreshPortsButton"
                         Canvas.Left="320" Canvas.Top="83"
                         Width="60" Height="32"
@@ -85,6 +86,21 @@
                         HorizontalContentAlignment="Center"
                         VerticalContentAlignment="Center"
                         Click="RefreshPortsButton_Click" />
+
+                <!-- Linux-only: appears when the selected port needs permission fixing -->
+                <Button x:Name="FixPermsButton"
+                        IsVisible="False"
+                        Canvas.Left="385" Canvas.Top="83"
+                        Width="90" Height="32"
+                        Content="Fix Access"
+                        FontFamily="Consolas"
+                        FontSize="10"
+                        Background="#b45309"
+                        Foreground="White"
+                        BorderBrush="Transparent"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Click="FixPermsButton_Click" />
 
                 <!-- Firmware selection -->
                 <TextBlock Canvas.Left="25" Canvas.Top="137"

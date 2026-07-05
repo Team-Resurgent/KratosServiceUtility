@@ -73,6 +73,9 @@ namespace KratosServiceUtility
                 MainProgressBar.Value = 0;
                 ProgressPercentText.Text = "0%";
             }
+
+            // Re-check after "Ready" so a permission warning wins the status line.
+            UpdatePortAccessHint();
         }
 
 
@@ -91,6 +94,7 @@ namespace KratosServiceUtility
             FlashButton.IsEnabled = enabled;
             EraseButton.IsEnabled = enabled;
             DumpButton.IsEnabled = enabled;
+            FixPermsButton.IsEnabled = enabled;
         }
 
         private void SetStatus(string message, double? progress = null)
@@ -387,6 +391,66 @@ namespace KratosServiceUtility
 
             if (ports.Length > 0)
                 PortCombo.SelectedIndex = 0;
+
+            UpdatePortAccessHint();
+        }
+
+        private void PortCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            UpdatePortAccessHint();
+        }
+
+        /// <summary>
+        /// On Linux, shows the "Fix Access" button (and a status hint) when the selected
+        /// port can't be opened by the current user. No-op on Windows/macOS.
+        /// </summary>
+        private void UpdatePortAccessHint()
+        {
+            if (FixPermsButton is null)
+            {
+                return;
+            }
+
+            string? port = PortCombo.SelectedItem as string;
+            bool needsFix = OperatingSystem.IsLinux()
+                && !string.IsNullOrEmpty(port)
+                && !LinuxSerialPermissions.CanAccess(port);
+
+            FixPermsButton.IsVisible = needsFix;
+            if (needsFix)
+            {
+                SetStatus($"{port}: permission denied — click 'Fix Access'.", 0);
+            }
+        }
+
+        private async void FixPermsButton_Click(object? sender, RoutedEventArgs e)
+        {
+            if (PortCombo.SelectedItem is not string port || string.IsNullOrEmpty(port))
+            {
+                return;
+            }
+
+            FixPermsButton.IsEnabled = false;
+            SetStatus("Requesting permission...", 0);
+
+            var (ok, detail) = await LinuxSerialPermissions.FixAsync(port);
+
+            FixPermsButton.IsEnabled = true;
+
+            if (ok)
+            {
+                SetStatus("Permissions updated. Ready.", 0);
+            }
+            else
+            {
+                _ = ShowMessageBoxAsync(
+                    $"Could not update permissions.\n\n{detail}",
+                    "Permission Fix Failed",
+                    MessageBoxButtons.Ok,
+                    MessageBoxIcon.Error);
+            }
+
+            UpdatePortAccessHint();
         }
 
         private async void BrowseFirmwareButton_Click(object? sender, RoutedEventArgs e)
@@ -463,36 +527,50 @@ namespace KratosServiceUtility
 
             try
             {
-                await Task.Run(async () =>
+                for (int attempt = 0; ; attempt++)
                 {
-                    var flashProgress = new FlashProgress(this);
+                    try
+                    {
+                        await Task.Run(async () =>
+                        {
+                            var flashProgress = new FlashProgress(this);
 
-                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+                            using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
 
-                    link.SerialHandshake = Handshake.RequestToSend;
-                    flashProgress.Message = "Connecting...";
-                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+                            link.SerialHandshake = Handshake.RequestToSend;
+                            flashProgress.Message = "Connecting...";
+                            await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
 
-                    flashProgress.Message = "Running stub... {0}%";
-                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
-                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+                            flashProgress.Message = "Running stub... {0}%";
+                            await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                            await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
 
-                    using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
-                    flashProgress.Message = "Writing firmware... {0}%";
-                    await link.FlashAsync(default, stm, true, 16384, 0x10000, 3, false, link.DefaultTimeout, flashProgress);
-                    await link.ResetAsync(default);
-                });
+                            using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
+                            flashProgress.Message = "Writing firmware... {0}%";
+                            await link.FlashAsync(default, stm, true, 16384, 0x10000, 3, false, link.DefaultTimeout, flashProgress);
+                            await link.ResetAsync(default);
+                        });
 
-                SetStatus("Firmware flashed successfully!", 100);
-                _ = ShowMessageBoxAsync("Firmware flashed successfully!",
-                    "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                SetStatus("Flash operation failed.", 0);
-                LogError("Flash", ex);
-                _ = ShowMessageBoxAsync($"Failed to flash firmware.\n\n{ex}",
-                    "Flashing Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
+                        SetStatus("Firmware flashed successfully!", 100);
+                        _ = ShowMessageBoxAsync("Firmware flashed successfully!",
+                            "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (attempt == 0 && await TryFixPortPermissionAsync(ex, port))
+                        {
+                            SetStatus("Permissions updated, retrying...", 0);
+                            continue;
+                        }
+
+                        SetStatus("Flash operation failed.", 0);
+                        LogError("Flash", ex);
+                        _ = ShowMessageBoxAsync($"Failed to flash firmware.\n\n{ex}",
+                            "Flashing Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
+                        break;
+                    }
+                }
             }
             finally
             {
@@ -531,34 +609,49 @@ namespace KratosServiceUtility
 
             try
             {
-                await Task.Run(async () =>
+                for (int attempt = 0; ; attempt++)
                 {
-                    var flashProgress = new FlashProgress(this);
+                    try
+                    {
+                        await Task.Run(async () =>
+                        {
+                            var flashProgress = new FlashProgress(this);
 
-                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+                            using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
 
-                    link.SerialHandshake = Handshake.RequestToSend;
-                    flashProgress.Message = "Connecting...";
-                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+                            link.SerialHandshake = Handshake.RequestToSend;
+                            flashProgress.Message = "Connecting...";
+                            await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
 
-                    flashProgress.Message = "Running stub... {0}%";
-                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
-                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+                            flashProgress.Message = "Running stub... {0}%";
+                            await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                            await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
 
-                    // todo: erase code
+                            // todo: erase code
 
-                    await link.ResetAsync(default);
-                });
+                            await link.ResetAsync(default);
+                        });
 
-                SetStatus("Flash memory erased successfully!", 100);
-                _ = ShowMessageBoxAsync("Flash memory erased successfully!",
-                    "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                SetStatus("Erase operation failed.", 0);
-                _ = ShowMessageBoxAsync($"Failed to erase flash:\n\n{ex}",
-                    "Erase Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
+                        SetStatus("Flash memory erased successfully!", 100);
+                        _ = ShowMessageBoxAsync("Flash memory erased successfully!",
+                            "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (attempt == 0 && await TryFixPortPermissionAsync(ex, port))
+                        {
+                            SetStatus("Permissions updated, retrying...", 0);
+                            continue;
+                        }
+
+                        SetStatus("Erase operation failed.", 0);
+                        LogError("Erase", ex);
+                        _ = ShowMessageBoxAsync($"Failed to erase flash:\n\n{ex}",
+                            "Erase Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
+                        break;
+                    }
+                }
             }
             finally
             {
@@ -613,35 +706,49 @@ namespace KratosServiceUtility
 
             try
             {
-                await Task.Run(async () =>
+                for (int attempt = 0; ; attempt++)
                 {
-                    var flashProgress = new FlashProgress(this);
+                    try
+                    {
+                        await Task.Run(async () =>
+                        {
+                            var flashProgress = new FlashProgress(this);
 
-                    using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
+                            using var link = new EspLink(port, EspSerialType.UsbSerialJtag);
 
-                    link.SerialHandshake = Handshake.RequestToSend;
-                    flashProgress.Message = "Connecting...";
-                    await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+                            link.SerialHandshake = Handshake.RequestToSend;
+                            flashProgress.Message = "Connecting...";
+                            await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
 
-                    flashProgress.Message = "Running stub... {0}%";
-                    await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
-                    await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
+                            flashProgress.Message = "Running stub... {0}%";
+                            await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
+                            await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
 
-                    // todo: dump code savePath
+                            // todo: dump code savePath
 
-                    await link.ResetAsync(default);
-                });
+                            await link.ResetAsync(default);
+                        });
 
-                SetStatus("Firmware dumped successfully!", 100);
-                _ = ShowMessageBoxAsync($"Firmware dumped successfully to:\n{savePath}",
-                    "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                SetStatus("Dump operation failed.", 0);
-                LogError("Dump", ex);
-                _ = ShowMessageBoxAsync($"Failed to dump firmware.\n\n{ex}",
-                    "Dump Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
+                        SetStatus("Firmware dumped successfully!", 100);
+                        _ = ShowMessageBoxAsync($"Firmware dumped successfully to:\n{savePath}",
+                            "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (attempt == 0 && await TryFixPortPermissionAsync(ex, port))
+                        {
+                            SetStatus("Permissions updated, retrying...", 0);
+                            continue;
+                        }
+
+                        SetStatus("Dump operation failed.", 0);
+                        LogError("Dump", ex);
+                        _ = ShowMessageBoxAsync($"Failed to dump firmware.\n\n{ex}",
+                            "Dump Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
+                        break;
+                    }
+                }
             }
             finally
             {
@@ -650,6 +757,44 @@ namespace KratosServiceUtility
             }
         }
 
+
+        /// <summary>
+        /// If <paramref name="ex"/> is a serial-port permission error on Linux, offers to
+        /// fix it (one pkexec prompt). Returns true if permissions were granted and the
+        /// caller should retry the operation.
+        /// </summary>
+        private async Task<bool> TryFixPortPermissionAsync(Exception ex, string port)
+        {
+            if (!OperatingSystem.IsLinux() || !LinuxSerialPermissions.IsPermissionDenied(ex))
+            {
+                return false;
+            }
+
+            var choice = await ShowMessageBoxAsync(
+                $"Permission denied opening {port}.\n\n" +
+                "Grant access now? This installs a udev rule for Espressif devices and " +
+                "will ask for your administrator password. You only need to do this once.",
+                "Permission Required",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (choice != MessageBoxResult.Yes)
+            {
+                return false;
+            }
+
+            SetStatus("Requesting permission...", 0);
+            var (ok, detail) = await LinuxSerialPermissions.FixAsync(port);
+            if (!ok)
+            {
+                _ = ShowMessageBoxAsync(
+                    $"Could not update permissions.\n\n{detail}",
+                    "Permission Fix Failed",
+                    MessageBoxButtons.Ok,
+                    MessageBoxIcon.Error);
+            }
+            return ok;
+        }
 
         private static void LogError(string op, Exception ex)
         {
