@@ -522,6 +522,18 @@ namespace KratosServiceUtility
                 return;
             }
 
+            // Detect the image type and flash accordingly:
+            //   full image (bootloader + partition table) -> erase whole chip, write at 0x0 (fresh device)
+            //   app-only image                            -> write just the app at 0x10000 (keeps bootloader/NVS)
+            bool fullImage = IsFullFlashImage(fw);
+            if (!fullImage && !IsEspAppImage(fw))
+            {
+                _ = ShowMessageBoxAsync(
+                    "This file doesn't look like ESP32 firmware (no image magic at 0x0).",
+                    "Wrong Firmware File", MessageBoxButtons.Ok, MessageBoxIcon.Error);
+                return;
+            }
+
             SetControlsEnabled(false);
             SetStatus("Initializing flash operation...", 0);
 
@@ -545,9 +557,26 @@ namespace KratosServiceUtility
                             await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
                             await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
 
-                            using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
-                            flashProgress.Message = "Writing firmware... {0}%";
-                            await link.FlashAsync(default, stm, true, 16384, 0x10000, 3, false, link.DefaultTimeout, flashProgress);
+                            if (fullImage)
+                            {
+                                // Full image: wipe the whole chip (incl. NVS) so the device comes up
+                                // factory-fresh, then write the merged image from 0x0.
+                                SetStatus("Full image: erasing entire chip...", 0);
+                                await link.EraseFlashAsync(default);
+
+                                using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
+                                flashProgress.Message = "Writing full image... {0}%";
+                                await link.FlashAsync(default, stm, true, 16384, 0x0, 3, false, link.DefaultTimeout, flashProgress);
+                            }
+                            else
+                            {
+                                // App-only image: write just the app partition at 0x10000, leaving the
+                                // existing bootloader, partition table and NVS (settings) intact.
+                                using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
+                                flashProgress.Message = "Writing app... {0}%";
+                                await link.FlashAsync(default, stm, true, 16384, 0x10000, 3, false, link.DefaultTimeout, flashProgress);
+                            }
+
                             await link.ResetAsync(default);
                         });
 
@@ -627,7 +656,8 @@ namespace KratosServiceUtility
                             await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
                             await link.SetBaudRateAsync(921600, default, link.DefaultTimeout);
 
-                            // todo: erase code
+                            SetStatus("Erasing flash...", 0);
+                            await link.EraseFlashAsync(default);
 
                             await link.ResetAsync(default);
                         });
@@ -794,6 +824,61 @@ namespace KratosServiceUtility
                     MessageBoxIcon.Error);
             }
             return ok;
+        }
+
+        /// <summary>
+        /// True if <paramref name="path"/> is a full flash image (bootloader image magic at
+        /// 0x0 and a partition-table entry magic at 0x8000), not an app-only binary. Flashing
+        /// an app-only image from 0x0 would overwrite the bootloader and brick boot.
+        /// </summary>
+        private static bool IsFullFlashImage(string path)
+        {
+            try
+            {
+                using var fs = File.OpenRead(path);
+                if (fs.Length < 0x9000)
+                {
+                    return false;
+                }
+
+                // ESP image magic (bootloader) at 0x0
+                fs.Seek(0, SeekOrigin.Begin);
+                if (fs.ReadByte() != 0xE9)
+                {
+                    return false;
+                }
+
+                // Partition-table entry magic 0x50AA (little-endian: AA 50) at 0x8000
+                fs.Seek(0x8000, SeekOrigin.Begin);
+                int b0 = fs.ReadByte();
+                int b1 = fs.ReadByte();
+                return b0 == 0xAA && b1 == 0x50;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// True if <paramref name="path"/> starts with the ESP image magic (0xE9) — i.e. a
+        /// plausible app-only firmware binary.
+        /// </summary>
+        private static bool IsEspAppImage(string path)
+        {
+            try
+            {
+                using var fs = File.OpenRead(path);
+                if (fs.Length < 0x400)
+                {
+                    return false;
+                }
+                return fs.ReadByte() == 0xE9;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static void LogError(string op, Exception ex)

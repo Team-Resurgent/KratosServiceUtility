@@ -9,6 +9,22 @@ namespace EL
 	partial class EspLink
     {
         const int ERASE_REGION_TIMEOUT_PER_MB = 60;
+        const int CHIP_ERASE_TIMEOUT = 120000; // ms; a whole-chip erase can take a while
+
+        /// <summary>
+        /// Erases the entire flash chip. Requires the stub loader to be running
+        /// (call <see cref="RunStubAsync"/> first).
+        /// </summary>
+        public async Task EraseFlashAsync(CancellationToken cancellationToken, int timeout = CHIP_ERASE_TIMEOUT)
+        {
+            CheckReady();
+            if (!IsStub)
+            {
+                throw new InvalidOperationException("Erase flash requires the stub loader.");
+            }
+            await CheckCommandAsync("erase flash", Device.ESP_ERASE_FLASH, Array.Empty<byte>(), 0, cancellationToken, timeout);
+        }
+
 		async Task<uint> FlashBeginAsync(CancellationToken cancellationToken, uint size, uint compsize, uint offset, uint blockSize, int timeout = -1)
 		{
 			CheckReady();
