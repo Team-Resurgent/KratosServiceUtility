@@ -498,6 +498,62 @@ namespace KratosServiceUtility
             }
         }
 
+        // Flash a full (merged) image while skipping long runs of erased (0xFF) flash. The merged
+        // image spans 0x0 up to the recovery slot at 0x280000, leaving a ~1MB 0xFF hole between the
+        // app and recovery; compressing and sending that hole as a single stream overruns the stub
+        // and times out mid-flash. Since the chip is fully erased first, we split the image into
+        // sector-aligned segments of real data and flash each at its own offset, skipping the holes.
+        private static async Task FlashFullImageChunkedAsync(EspLink link, string path, FlashProgress progress, int timeout)
+        {
+            const int SECTOR = 0x1000; // 4 KB flash sector
+            byte[] img = File.ReadAllBytes(path);
+
+            // Group consecutive non-empty (has real data) sectors into segments.
+            var segments = new List<(int start, int len)>();
+            int i = 0;
+            while (i < img.Length)
+            {
+                if (SectorIsEmpty(img, i, SECTOR)) { i += SECTOR; continue; }
+                int start = i;
+                while (i < img.Length && !SectorIsEmpty(img, i, SECTOR)) i += SECTOR;
+                segments.Add((start, Math.Min(i, img.Length) - start));
+            }
+
+            long total = 0;
+            foreach (var s in segments) total += s.len;
+            long done = 0;
+
+            foreach (var (start, len) in segments)
+            {
+                long segBase = done;
+                var segProgress = new RelayProgress(p =>
+                {
+                    int overall = total > 0 ? (int)((segBase + (long)len * p / 100) * 100 / total) : 100;
+                    progress.Report(overall);
+                });
+                using var ms = new MemoryStream(img, start, len, writable: false);
+                await link.FlashAsync(default, ms, true, 16384, (uint)start, 3, false, timeout, segProgress);
+                done += len;
+            }
+            progress.Report(100);
+        }
+
+        private static bool SectorIsEmpty(byte[] buf, int offset, int sector)
+        {
+            int end = Math.Min(offset + sector, buf.Length);
+            for (int k = offset; k < end; k++)
+                if (buf[k] != 0xFF) return false;
+            return true;
+        }
+
+        // Adapts a lambda to IProgress<int> so each segment's 0-100 maps into overall progress.
+        private sealed class RelayProgress : IProgress<int>
+        {
+            private readonly Action<int> _report;
+            public RelayProgress(Action<int> report) { _report = report; }
+            public void Report(int value) => _report(value);
+        }
+
         private async void FlashButton_Click(object? sender, RoutedEventArgs e)
         {
             if (!_envReady)
@@ -560,21 +616,34 @@ namespace KratosServiceUtility
                             if (fullImage)
                             {
                                 // Full image: wipe the whole chip (incl. NVS) so the device comes up
-                                // factory-fresh, then write the merged image from 0x0.
-                                SetStatus("Full image: erasing entire chip...", 0);
-                                await link.EraseFlashAsync(default);
+                                // factory-fresh, then write the merged image from 0x0 -- skipping the
+                                // erased (0xFF) gaps so the ~1MB hole before the recovery slot isn't
+                                // sent as one giant compressed block (which overruns the stub).
+                                // Erase the whole chip in chunks (ESP_ERASE_REGION) so the bar moves,
+                                // rather than sitting on one blind whole-chip erase. Slightly slower
+                                // per byte, but the user gets feedback.
+                                int flashSize = link.FlashSizeBytes;
+                                if (flashSize <= 0) flashSize = 0x400000; // fall back to 4 MB if the SPI id wasn't recognized
+                                flashProgress.Message = "Erasing chip... {0}%";
+                                flashProgress.Report(0);
+                                const uint eraseChunk = 0x40000; // 256 KB
+                                for (uint off = 0; off < (uint)flashSize; off += eraseChunk)
+                                {
+                                    uint sz = Math.Min(eraseChunk, (uint)flashSize - off);
+                                    await link.EraseRegionAsync(default, off, sz, link.DefaultTimeout);
+                                    flashProgress.Report((int)((long)(off + sz) * 100 / flashSize));
+                                }
 
-                                using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
                                 flashProgress.Message = "Writing full image... {0}%";
-                                await link.FlashAsync(default, stm, true, 16384, 0x0, 3, false, link.DefaultTimeout, flashProgress);
+                                await FlashFullImageChunkedAsync(link, fw, flashProgress, link.DefaultTimeout);
                             }
                             else
                             {
-                                // App-only image: write just the app partition at 0x10000, leaving the
+                                // App-only image: write just the app partition at 0x20000, leaving the
                                 // existing bootloader, partition table and NVS (settings) intact.
                                 using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
                                 flashProgress.Message = "Writing app... {0}%";
-                                await link.FlashAsync(default, stm, true, 16384, 0x10000, 3, false, link.DefaultTimeout, flashProgress);
+                                await link.FlashAsync(default, stm, true, 16384, 0x20000, 3, false, link.DefaultTimeout, flashProgress);
                             }
 
                             await link.ResetAsync(default);
@@ -595,8 +664,13 @@ namespace KratosServiceUtility
 
                         SetStatus("Flash operation failed.", 0);
                         LogError("Flash", ex);
-                        _ = ShowMessageBoxAsync($"Failed to flash firmware.\n\n{ex}",
-                            "Flashing Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
+                        bool portBusy = ex is UnauthorizedAccessException
+                            || ex.InnerException is UnauthorizedAccessException
+                            || ex.Message.Contains("Access to the path", StringComparison.OrdinalIgnoreCase);
+                        string msg = portBusy
+                            ? $"{port} is in use or wasn't released in time.\n\nClose anything using the port (a serial monitor such as VS Code's ESP-IDF Monitor, idf.py monitor, PuTTY, or another copy of this app), then try again. Unplug/replug the device if it persists.\n\n{ex.Message}"
+                            : $"Failed to flash firmware.\n\n{ex}";
+                        _ = ShowMessageBoxAsync(msg, "Flashing Failed", MessageBoxButtons.Ok, MessageBoxIcon.Error);
                         break;
                     }
                 }

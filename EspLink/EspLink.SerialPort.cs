@@ -54,14 +54,27 @@ namespace EL
 			}
 			if (!_port.IsOpen)
 			{
-				try
+				// The ESP32-S3's native USB CDC re-enumerates on every reset, so the port can be
+				// briefly locked (UnauthorizedAccessException) right after a reboot or a previous
+				// close. Retry a few times with a short delay to ride out that transient before
+				// giving up -- a persistent lock (another app holding the port) still surfaces.
+				const int maxAttempts = 6;
+				for (int attempt = 1; ; attempt++)
 				{
-					_port.Open();
-				}
-
-				catch {
-					if (throwOnError) { throw; }
-					return null; 
+					try
+					{
+						_port.Open();
+						break;
+					}
+					catch (Exception ex) when ((ex is UnauthorizedAccessException || ex is System.IO.IOException) && attempt < maxAttempts)
+					{
+						Thread.Sleep(250);
+					}
+					catch
+					{
+						if (throwOnError) { throw; }
+						return null;
+					}
 				}
 			}
 			return _port;

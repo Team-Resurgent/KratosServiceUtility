@@ -25,6 +25,33 @@ namespace EL
             await CheckCommandAsync("erase flash", Device.ESP_ERASE_FLASH, Array.Empty<byte>(), 0, cancellationToken, timeout);
         }
 
+        /// <summary>
+        /// Erases a single region of flash (offset and size must be 4 KB sector aligned). Slower per
+        /// byte than a whole-chip erase, but can be called in chunks to drive a progress bar instead
+        /// of one blind blocking erase. Requires the stub loader.
+        /// </summary>
+        public async Task EraseRegionAsync(CancellationToken cancellationToken, uint offset, uint size, int timeout = -1)
+        {
+            CheckReady();
+            if (!IsStub)
+            {
+                throw new InvalidOperationException("Erase region requires the stub loader.");
+            }
+            if (timeout < 0)
+            {
+                timeout = 1000 * (int)Math.Max(1, ERASE_REGION_TIMEOUT_PER_MB * ((float)size / 1e6));
+            }
+            var data = new byte[8];
+            uint poffset = offset, psize = size;
+            if (!BitConverter.IsLittleEndian)
+            {
+                poffset = SwapBytes(poffset);
+                psize = SwapBytes(psize);
+            }
+            PackUInts(data, 0, new uint[] { poffset, psize });
+            await CheckCommandAsync("erase region", Device.ESP_ERASE_REGION, data, 0, cancellationToken, timeout);
+        }
+
 		async Task<uint> FlashBeginAsync(CancellationToken cancellationToken, uint size, uint compsize, uint offset, uint blockSize, int timeout = -1)
 		{
 			CheckReady();
