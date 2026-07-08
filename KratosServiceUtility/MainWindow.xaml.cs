@@ -499,7 +499,7 @@ namespace KratosServiceUtility
         }
 
         // Flash a full (merged) image while skipping long runs of erased (0xFF) flash. The merged
-        // image spans 0x0 up to the recovery slot at 0x280000, leaving a ~1MB 0xFF hole between the
+        // image spans 0x0 up to the recovery slot at 0x300000, leaving a ~large 0xFF hole between the
         // app and recovery; compressing and sending that hole as a single stream overruns the stub
         // and times out mid-flash. Since the chip is fully erased first, we split the image into
         // sector-aligned segments of real data and flash each at its own offset, skipping the holes.
@@ -607,7 +607,11 @@ namespace KratosServiceUtility
 
                             link.SerialHandshake = Handshake.RequestToSend;
                             flashProgress.Message = "Connecting...";
-                            await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+                            flashProgress.Report(0); // push the "Connecting..." status now (no reporter ran yet)
+                            // Short per-sync timeout (500 ms) + more attempts so a missed USB-Serial-JTAG
+                            // reset retries quickly (esptool-style) instead of grinding through 5 s timeouts
+                            // and looking hung. Pass flashProgress so connect keeps updating the status.
+                            await link.ConnectAsync(EspConnectMode.Default, 7, false, default, 500, flashProgress);
 
                             flashProgress.Message = "Running stub... {0}%";
                             await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
@@ -622,8 +626,14 @@ namespace KratosServiceUtility
                                 // Erase the whole chip in chunks (ESP_ERASE_REGION) so the bar moves,
                                 // rather than sitting on one blind whole-chip erase. Slightly slower
                                 // per byte, but the user gets feedback.
+                                // Fall back to 4 MB if the SPI id wasn't recognized (<=0) OR reported an
+                                // implausibly small size -- these boards are >=4 MB, and under-erasing here
+                                // would leave NVS (WiFi creds / Matter fabric) intact, silently defeating the
+                                // factory-reset intent. Never erase less than the image we're about to write.
                                 int flashSize = link.FlashSizeBytes;
-                                if (flashSize <= 0) flashSize = 0x400000; // fall back to 4 MB if the SPI id wasn't recognized
+                                long imageLen = new FileInfo(fw).Length;
+                                if (flashSize < 0x400000) flashSize = 0x400000;
+                                if (flashSize < imageLen) flashSize = (int)((imageLen + 0xFFFF) & ~0xFFFFL);
                                 flashProgress.Message = "Erasing chip... {0}%";
                                 flashProgress.Report(0);
                                 const uint eraseChunk = 0x40000; // 256 KB
@@ -724,7 +734,11 @@ namespace KratosServiceUtility
 
                             link.SerialHandshake = Handshake.RequestToSend;
                             flashProgress.Message = "Connecting...";
-                            await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+                            flashProgress.Report(0); // push the "Connecting..." status now (no reporter ran yet)
+                            // Short per-sync timeout (500 ms) + more attempts so a missed USB-Serial-JTAG
+                            // reset retries quickly (esptool-style) instead of grinding through 5 s timeouts
+                            // and looking hung. Pass flashProgress so connect keeps updating the status.
+                            await link.ConnectAsync(EspConnectMode.Default, 7, false, default, 500, flashProgress);
 
                             flashProgress.Message = "Running stub... {0}%";
                             await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);
@@ -822,7 +836,11 @@ namespace KratosServiceUtility
 
                             link.SerialHandshake = Handshake.RequestToSend;
                             flashProgress.Message = "Connecting...";
-                            await link.ConnectAsync(EspConnectMode.Default, 3, false, default, link.DefaultTimeout);
+                            flashProgress.Report(0); // push the "Connecting..." status now (no reporter ran yet)
+                            // Short per-sync timeout (500 ms) + more attempts so a missed USB-Serial-JTAG
+                            // reset retries quickly (esptool-style) instead of grinding through 5 s timeouts
+                            // and looking hung. Pass flashProgress so connect keeps updating the status.
+                            await link.ConnectAsync(EspConnectMode.Default, 7, false, default, 500, flashProgress);
 
                             flashProgress.Message = "Running stub... {0}%";
                             await link.RunStubAsync(default, link.DefaultTimeout, flashProgress);

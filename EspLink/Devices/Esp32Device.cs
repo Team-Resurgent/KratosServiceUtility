@@ -101,15 +101,17 @@ namespace EL
         internal virtual uint RTC_CNTL_SDIO_PD_EN { get; } = (uint)(1L << 21);
 
 
+        // Size id (byte 2 of the RDID reply) -> flash capacity in BYTES. FlashSizeBytes/FlashSize are
+        // consumed as bytes (e.g. the whole-chip erase loop), so these must be MB*1024*1024, not KB.
         internal virtual IReadOnlyDictionary<byte, int> FLASH_SIZES { get; } = new Dictionary<byte, int>() {
-            { 0x00, 1*1024 },
-            { 0x10, 2*1024 },
-            { 0x20, 4*1024 },
-            { 0x30, 8*1024 },
-            { 0x40, 16*1024 },
-            { 0x50, 32*1024 },
-            { 0x60, 64*1024 },
-            { 0x70, 128*1024 }
+            { 0x00, 1*1024*1024 },
+            { 0x10, 2*1024*1024 },
+            { 0x20, 4*1024*1024 },
+            { 0x30, 8*1024*1024 },
+            { 0x40, 16*1024*1024 },
+            { 0x50, 32*1024*1024 },
+            { 0x60, 64*1024*1024 },
+            { 0x70, 128*1024*1024 }
 		};
         internal virtual IReadOnlyDictionary<byte, int> FLASH_FREQUENCY { get; } = new Dictionary<byte, int>() {
             { 0x0F, 80 },
