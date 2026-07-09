@@ -12,22 +12,30 @@
     <Grid RowDefinitions="Auto,*" Margin="8">
 
         <!-- Toolbar -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,6">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,6">
             <TextBlock x:Name="InfoText"
                        Grid.Column="0"
                        Text="Disconnected"
                        FontFamily="Consolas" FontSize="12"
                        Foreground="#9ca3af"
                        VerticalAlignment="Center" />
-            <CheckBox x:Name="AutoScrollCheck"
+            <CheckBox x:Name="CaptureCheck"
                       Grid.Column="1"
+                      Content="Capture"
+                      IsChecked="True"
+                      Click="CaptureCheck_Click"
+                      FontFamily="Consolas" FontSize="12"
+                      Foreground="#e5e7eb"
+                      Margin="0,0,12,0" />
+            <CheckBox x:Name="AutoScrollCheck"
+                      Grid.Column="2"
                       Content="Autoscroll"
                       IsChecked="True"
                       FontFamily="Consolas" FontSize="12"
                       Foreground="#e5e7eb"
                       Margin="0,0,12,0" />
             <Button x:Name="ClearButton"
-                    Grid.Column="2"
+                    Grid.Column="3"
                     Content="Clear"
                     Click="ClearButton_Click"
                     FontFamily="Consolas" FontSize="12"
@@ -35,7 +43,7 @@
                     Padding="12,4"
                     Margin="0,0,6,0" />
             <Button x:Name="ReconnectButton"
-                    Grid.Column="3"
+                    Grid.Column="4"
                     Content="Reconnect"
                     Click="ReconnectButton_Click"
                     FontFamily="Consolas" FontSize="12"

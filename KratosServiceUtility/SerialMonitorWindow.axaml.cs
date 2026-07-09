@@ -36,6 +36,7 @@ namespace KratosServiceUtility
         private SerialPort? _port;
         private string _portName = "";
         private volatile bool _closing;
+        private volatile bool _capture = true; // false = capture paused: port stays open, incoming data dropped
 
         public SerialMonitorWindow()
         {
@@ -138,6 +139,7 @@ namespace KratosServiceUtility
                 if (n <= 0) return;
                 var buf = new byte[n];
                 int read = port.Read(buf, 0, n);
+                if (!_capture) return; // drain the port but drop the data while capture is paused
                 lock (_bufLock)
                 {
                     for (int i = 0; i < read; i++) _rxBytes.Add(buf[i]);
@@ -190,6 +192,15 @@ namespace KratosServiceUtility
         private void ReconnectButton_Click(object? sender, RoutedEventArgs e)
         {
             if (!string.IsNullOrEmpty(_portName)) StartMonitoring(_portName);
+        }
+
+        private void CaptureCheck_Click(object? sender, RoutedEventArgs e)
+        {
+            _capture = CaptureCheck.IsChecked == true;
+            if (_capture)
+                SetInfo(IsMonitoring ? $"Connected: {_portName} @ {ConsoleBaud}" : "Disconnected");
+            else
+                SetInfo($"Capture paused — {_portName}");
         }
     }
 }
