@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="KratosServiceUtility.SerialMonitorWindow"
+        Title="Kratos Serial Monitor"
+        Width="720" Height="460"
+        MinWidth="420" MinHeight="240"
+        CanResize="True"
+        WindowStartupLocation="CenterOwner"
+        Background="#0a0a1a"
+        Icon="/Resources/kratos.png">
+
+    <Grid RowDefinitions="Auto,*" Margin="8">
+
+        <!-- Toolbar -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,6">
+            <TextBlock x:Name="InfoText"
+                       Grid.Column="0"
+                       Text="Disconnected"
+                       FontFamily="Consolas" FontSize="12"
+                       Foreground="#9ca3af"
+                       VerticalAlignment="Center" />
+            <CheckBox x:Name="AutoScrollCheck"
+                      Grid.Column="1"
+                      Content="Autoscroll"
+                      IsChecked="True"
+                      FontFamily="Consolas" FontSize="12"
+                      Foreground="#e5e7eb"
+                      Margin="0,0,12,0" />
+            <Button x:Name="ClearButton"
+                    Grid.Column="2"
+                    Content="Clear"
+                    Click="ClearButton_Click"
+                    FontFamily="Consolas" FontSize="12"
+                    Background="#020b1f" Foreground="#e5e7eb" BorderBrush="#1f2937"
+                    Padding="12,4"
+                    Margin="0,0,6,0" />
+            <Button x:Name="ReconnectButton"
+                    Grid.Column="3"
+                    Content="Reconnect"
+                    Click="ReconnectButton_Click"
+                    FontFamily="Consolas" FontSize="12"
+                    Background="#020b1f" Foreground="#00adff" BorderBrush="#1f2937"
+                    Padding="12,4" />
+        </Grid>
+
+        <!-- Log -->
+        <ScrollViewer x:Name="LogScroll"
+                      Grid.Row="1"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto"
+                      Background="#020617">
+            <SelectableTextBlock x:Name="LogText"
+                                 FontFamily="Consolas" FontSize="12"
+                                 Foreground="#cbd5f5"
+                                 TextWrapping="Wrap"
+                                 Padding="6" />
+        </ScrollViewer>
+
+    </Grid>
+</Window>

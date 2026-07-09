@@ -52,6 +52,21 @@
                           BorderBrush="Transparent"
                           Click="MusicCheckBox_Click" />
 
+                <!-- Serial monitor (top-right, above the music toggle) -->
+                <Button x:Name="MonitorButton"
+                        Canvas.Left="345" Canvas.Top="9"
+                        Width="130" Height="24"
+                        Content="Serial Monitor"
+                        FontFamily="Consolas"
+                        FontSize="11"
+                        Padding="0"
+                        Background="#020b1f"
+                        Foreground="#00adff"
+                        BorderBrush="#1f2937"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Click="MonitorButton_Click" />
+
                 <!-- Thin neon separator -->
                 <Rectangle Canvas.Left="0" Canvas.Top="70"
                            Width="500" Height="1"

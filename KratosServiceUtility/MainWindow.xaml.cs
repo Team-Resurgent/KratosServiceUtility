@@ -41,6 +41,10 @@ namespace KratosServiceUtility
 
         private bool _envReady;
 
+        // Optional serial monitor window (created on demand). It and the main window must never hold the
+        // same COM port at once, so every flash/erase/dump releases it first (ReleasePortForOperationAsync).
+        private SerialMonitorWindow? _monitor;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -84,6 +88,7 @@ namespace KratosServiceUtility
             StopPlasma();
             StopMusic();
             FreeMusicSystem();
+            _monitor?.Close();
         }
 
         private void SetControlsEnabled(bool enabled)
@@ -95,6 +100,7 @@ namespace KratosServiceUtility
             EraseButton.IsEnabled = enabled;
             DumpButton.IsEnabled = enabled;
             FixPermsButton.IsEnabled = enabled;
+            MonitorButton.IsEnabled = enabled;
         }
 
         private void SetStatus(string message, double? progress = null)
@@ -398,6 +404,14 @@ namespace KratosServiceUtility
         private void PortCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             UpdatePortAccessHint();
+
+            // If the monitor is open and streaming, follow the newly selected port.
+            if (_monitor != null && _monitor.IsMonitoring
+                && PortCombo.SelectedItem is string port && !string.IsNullOrEmpty(port)
+                && !string.Equals(port, _monitor.PortName, StringComparison.Ordinal))
+            {
+                _monitor.StartMonitoring(port);
+            }
         }
 
         /// <summary>
@@ -593,6 +607,9 @@ namespace KratosServiceUtility
             SetControlsEnabled(false);
             SetStatus("Initializing flash operation...", 0);
 
+            // If the monitor is open it's holding the port -- hand it to EspLink for the flash.
+            await ReleasePortForOperationAsync();
+
             try
             {
                 for (int attempt = 0; ; attempt++)
@@ -660,6 +677,7 @@ namespace KratosServiceUtility
                         });
 
                         SetStatus("Firmware flashed successfully!", 100);
+                        ShowMonitor(port); // pop the monitor and stream the boot log right after flashing
                         _ = ShowMessageBoxAsync("Firmware flashed successfully!",
                             "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
                         break;
@@ -720,6 +738,8 @@ namespace KratosServiceUtility
             SetControlsEnabled(false);
             SetStatus("Initializing erase operation...", 0);
 
+            bool resumeMonitor = await ReleasePortForOperationAsync();
+
             try
             {
                 for (int attempt = 0; ; attempt++)
@@ -751,6 +771,7 @@ namespace KratosServiceUtility
                         });
 
                         SetStatus("Flash memory erased successfully!", 100);
+                        if (resumeMonitor) ShowMonitor(port);
                         _ = ShowMessageBoxAsync("Flash memory erased successfully!",
                             "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
                         break;
@@ -820,6 +841,8 @@ namespace KratosServiceUtility
             SetControlsEnabled(false);
             SetStatus("Initializing dump operation...", 0);
 
+            bool resumeMonitor = await ReleasePortForOperationAsync();
+
             const int flashSize = 0x400000;
 
             try
@@ -852,6 +875,7 @@ namespace KratosServiceUtility
                         });
 
                         SetStatus("Firmware dumped successfully!", 100);
+                        if (resumeMonitor) ShowMonitor(port);
                         _ = ShowMessageBoxAsync($"Firmware dumped successfully to:\n{savePath}",
                             "Success", MessageBoxButtons.Ok, MessageBoxIcon.Information);
                         break;
@@ -982,6 +1006,48 @@ namespace KratosServiceUtility
                     $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {op} failed:\n{ex}\n\n");
             }
             catch { }
+        }
+
+        // --- Serial monitor plumbing --------------------------------------------------------------
+
+        // Open (or focus) the serial monitor window and start streaming 'port'. UI thread only.
+        private void ShowMonitor(string port)
+        {
+            if (_monitor == null)
+            {
+                _monitor = new SerialMonitorWindow();
+                _monitor.Closed += (_, _) => _monitor = null;
+                _monitor.Show(this); // non-modal, owned by the main window
+            }
+            else
+            {
+                _monitor.Activate();
+            }
+            _monitor.StartMonitoring(port);
+        }
+
+        // Release the COM port from the monitor so an EspLink operation can take it. Returns true if the
+        // monitor was actively streaming, so the caller can resume it once the operation finishes.
+        private async Task<bool> ReleasePortForOperationAsync()
+        {
+            if (_monitor != null && _monitor.IsMonitoring)
+            {
+                _monitor.StopMonitoring();
+                await Task.Delay(300); // let the OS release the USB-CDC handle before EspLink reopens it
+                return true;
+            }
+            return false;
+        }
+
+        private void MonitorButton_Click(object? sender, RoutedEventArgs e)
+        {
+            if (PortCombo.SelectedItem is not string port || string.IsNullOrEmpty(port))
+            {
+                _ = ShowMessageBoxAsync("Select a serial port first.", "Input Missing",
+                    MessageBoxButtons.Ok, MessageBoxIcon.Warning);
+                return;
+            }
+            ShowMonitor(port);
         }
 
         private async Task<MessageBoxResult> ShowMessageBoxAsync(
