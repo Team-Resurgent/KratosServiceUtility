@@ -12,7 +12,7 @@
     <Grid RowDefinitions="Auto,*" Margin="8">
 
         <!-- Toolbar -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,6">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,6">
             <TextBlock x:Name="InfoText"
                        Grid.Column="0"
                        Text="Disconnected"
@@ -34,8 +34,16 @@
                       FontFamily="Consolas" FontSize="12"
                       Foreground="#e5e7eb"
                       Margin="0,0,12,0" />
-            <Button x:Name="ClearButton"
+            <Button x:Name="SaveButton"
                     Grid.Column="3"
+                    Content="Save Log"
+                    Click="SaveButton_Click"
+                    FontFamily="Consolas" FontSize="12"
+                    Background="#020b1f" Foreground="#e5e7eb" BorderBrush="#1f2937"
+                    Padding="12,4"
+                    Margin="0,0,6,0" />
+            <Button x:Name="ClearButton"
+                    Grid.Column="4"
                     Content="Clear"
                     Click="ClearButton_Click"
                     FontFamily="Consolas" FontSize="12"
@@ -43,7 +51,7 @@
                     Padding="12,4"
                     Margin="0,0,6,0" />
             <Button x:Name="ReconnectButton"
-                    Grid.Column="4"
+                    Grid.Column="5"
                     Content="Reconnect"
                     Click="ReconnectButton_Click"
                     FontFamily="Consolas" FontSize="12"

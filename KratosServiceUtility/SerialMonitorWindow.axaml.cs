@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 
 namespace KratosServiceUtility
@@ -188,6 +189,34 @@ namespace KratosServiceUtility
         private void SetInfo(string s) => InfoText.Text = s;
 
         private void ClearButton_Click(object? sender, RoutedEventArgs e) => LogText.Text = "";
+
+        private async void SaveButton_Click(object? sender, RoutedEventArgs e)
+        {
+            var text = LogText.Text ?? "";
+            try
+            {
+                var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+                {
+                    Title = "Save Serial Log",
+                    SuggestedFileName = "kratos-serial-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".log",
+                    DefaultExtension = "log",
+                    FileTypeChoices = new[]
+                    {
+                        new FilePickerFileType("Log file") { Patterns = new[] { "*.log", "*.txt" } }
+                    }
+                });
+                if (file == null) return; // user cancelled
+
+                await using var stream = await file.OpenWriteAsync();
+                var bytes = Encoding.UTF8.GetBytes(text);
+                await stream.WriteAsync(bytes, 0, bytes.Length);
+                SetInfo($"Saved log to {file.Name}");
+            }
+            catch (Exception ex)
+            {
+                SetInfo($"Save failed: {ex.Message}");
+            }
+        }
 
         private void ReconnectButton_Click(object? sender, RoutedEventArgs e)
         {
