@@ -594,7 +594,7 @@ namespace KratosServiceUtility
 
             // Detect the image type and flash accordingly:
             //   full image (bootloader + partition table) -> erase whole chip, write at 0x0 (fresh device)
-            //   app-only image                            -> write just the app at 0x10000 (keeps bootloader/NVS)
+            //   app-only image                            -> write just the app at the ota_0 offset (keeps bootloader/NVS)
             bool fullImage = IsFullFlashImage(fw);
             if (!fullImage && !IsEspAppImage(fw))
             {
@@ -666,11 +666,19 @@ namespace KratosServiceUtility
                             }
                             else
                             {
-                                // App-only image: write just the app partition at 0x20000, leaving the
-                                // existing bootloader, partition table and NVS (settings) intact.
+                                // App-only image: write just the app partition, leaving the existing
+                                // bootloader, partition table and NVS (settings) intact.
+                                // NOTE: this offset MUST match ota_0's offset in the firmware's
+                                // partitions.csv. Enlarging the coredump partition moved ota_0 from
+                                // 0x20000 -> 0x30000, so app-only flashes now target 0x30000. (The full
+                                // merged-image path above is layout-agnostic -- it writes from 0x0 and
+                                // the merged bin already carries ota_0 at the right place -- so only this
+                                // app-only path is coupled to the layout. Devices still on the old table
+                                // must be re-flashed with a full merged image to pick up the new layout.)
+                                const uint ota0Offset = 0x30000;
                                 using FileStream stm = File.Open(fw, FileMode.Open, FileAccess.Read);
                                 flashProgress.Message = "Writing app... {0}%";
-                                await link.FlashAsync(default, stm, true, 16384, 0x20000, 3, false, link.DefaultTimeout, flashProgress);
+                                await link.FlashAsync(default, stm, true, 16384, ota0Offset, 3, false, link.DefaultTimeout, flashProgress);
                             }
 
                             await link.ResetAsync(default);
